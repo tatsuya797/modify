@@ -60,21 +60,6 @@ def load_all_texts_from_directory(directory):
     st.write(f"読み込んだファイル数: {file_count}個")
     return all_texts
 
-# 前処理後のテキストファイルを読み込む関数
-@st.cache_data
-def load_processed_texts(processed_files):
-    processed_texts = {}
-    for file_name in processed_files:
-        file_path = Path(file_name)
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                processed_texts[file_name] = f.read()
-        except UnicodeDecodeError as e:
-            st.warning(f"ファイル {file_path} の読み込みに失敗しました。エンコーディングエラー: {e}")
-        except Exception as e:
-            st.warning(f"ファイル {file_path} の読み込みに予期せぬエラーが発生しました: {e}")
-    return processed_texts
-
 # テキストデータを処理する関数
 def process_text_files(directory):
     processed_texts = []  # 処理後のテキストを格納するリスト
@@ -83,12 +68,8 @@ def process_text_files(directory):
         save_cleanse_text(text_file)  # 前処理関数を呼び出し
         # 前処理後の結果をリストに追加（保存場所に応じて変更）
         # ここでは仮にファイル名に基づいて読み込んでいますが、実際には適切な処理が必要です。
-        processed_file_name = f"{text_file.stem}_clns_utf-8.txt"
-        processed_file_path = Path(directory) / processed_file_name
-        if processed_file_path.exists():
-            processed_texts.append(processed_file_path)
-        else:
-            st.warning(f"処理後のファイル {processed_file_path} が見つかりません。")
+        processed_texts.append(f"{text_file.stem}_clns_utf-8.txt")  # 仮の処理
+
     return processed_texts
 
 # チャットボットとやりとりする関数
@@ -143,20 +124,13 @@ def main():
 
         # テキストファイルを処理するボタン
         if st.button("テキストファイルを処理する"):
-            processed_text_files = process_text_files(txtfile_879_directory)  # テキストファイルの処理を実行
+            processed_texts = process_text_files(txtfile_879_directory)  # テキストファイルの処理を実行
             st.success("テキストファイルの処理が完了しました。")
 
-            if processed_text_files:
-                # 前処理後のテキストを読み込む
-                processed_texts = load_processed_texts(processed_text_files)
-
-                # 処理後のテキストを表示
-                st.subheader("処理後のテキスト")
-                for file_name, content in processed_texts.items():
-                    with st.expander(f"ファイル: {file_name}"):
-                        st.text_area(file_name, content, height=200)
-            else:
-                st.warning("処理後のテキストファイルが見つかりませんでした。")
+            # 処理後のテキストを表示
+            st.subheader("処理後のテキスト")
+            for processed_file in processed_texts:
+                st.write(processed_file)  # 各処理後のファイル名を表示
 
         # Streamlit Community Cloudの「Secrets」からOpenAI API keyを取得
         try:
