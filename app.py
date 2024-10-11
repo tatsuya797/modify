@@ -27,6 +27,10 @@ def extract_zip(file):
 def load_all_texts_from_directory(directory):
     all_texts = ""
     file_count = 0  # 読み込んだファイルの数
+    failed_files = []
+
+    # 試行するエンコーディングのリスト
+    encodings = ['utf-8', 'shift_jis', 'iso-2022-jp']
 
     for root, dirs, files in os.walk(directory):
         # __MACOSX ディレクトリをスキップ
@@ -38,38 +42,62 @@ def load_all_texts_from_directory(directory):
                 continue
             if file.endswith(".txt"):
                 file_path = os.path.join(root, file)
-                try:
-                    # まずはutf-8で試す
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        all_texts += f.read() + "\n"
-                    file_count += 1
-                except UnicodeDecodeError as e1:
+                success = False
+                for enc in encodings:
                     try:
-                        # 次にshift_jisで試す
-                        with open(file_path, "r", encoding="shift_jis") as f:
-                            all_texts += f.read() + "\n"
+                        with open(file_path, "r", encoding=enc) as f:
+                            content = f.read()
+                            all_texts += content + "\n"
                         file_count += 1
-                    except UnicodeDecodeError as e2:
-                        # それでも失敗した場合はスキップ
-                        st.warning(f"ファイル {file_path} の読み込みに失敗しました。エンコーディングエラー: {e2}")
+                        success = True
+                        st.write(f"ファイル {file_path} を {enc} エンコーディングで読み込みました。")
+                        break  # 読み込みに成功したら次のファイルへ
+                    except UnicodeDecodeError as e:
+                        st.warning(f"ファイル {file_path} の {enc} エンコーディングでの読み込みに失敗しました。次のエンコーディングを試みます。")
                     except Exception as e:
-                        st.warning(f"ファイル {file_path} の読み込みに予期せぬエラーが発生しました: {e}")
-                except Exception as e:
-                    st.warning(f"ファイル {file_path} の読み込みに予期せぬエラーが発生しました: {e}")
-
+                        st.warning(f"ファイル {file_path} の読み込み中に予期せぬエラーが発生しました: {e}")
+                        break  # その他のエラーが発生した場合は次のファイルへ
+                if not success:
+                    failed_files.append(file_path)
+    
+    if failed_files:
+        st.error("以下のファイルの読み込みに失敗しました：")
+        for f in failed_files:
+            st.error(f)
     st.write(f"読み込んだファイル数: {file_count}個")
     return all_texts
+
+# 前処理後のテキストファイルを読み込む関数
+@st.cache_data
+def load_processed_texts(processed_files):
+    processed_texts = {}
+    for file_path in processed_files:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                processed_texts[file_path.name] = f.read()
+        except UnicodeDecodeError as e:
+            st.warning(f"ファイル {file_path} の読み込みに失敗しました。エンコーディングエラー: {e}")
+        except Exception as e:
+            st.warning(f"ファイル {file_path} の読み込みに予期せぬエラーが発生しました: {e}")
+    return processed_texts
 
 # テキストデータを処理する関数
 def process_text_files(directory):
     processed_texts = []  # 処理後のテキストを格納するリスト
     text_files = list(Path(directory).glob('**/*.txt'))  # サブフォルダも含む
     for text_file in text_files:
-        save_cleanse_text(text_file)  # 前処理関数を呼び出し
-        # 前処理後の結果をリストに追加（保存場所に応じて変更）
-        # ここでは仮にファイル名に基づいて読み込んでいますが、実際には適切な処理が必要です。
-        processed_texts.append(f"{text_file.stem}_clns_utf-8.txt")  # 仮の処理
-
+        try:
+            save_cleanse_text(text_file)  # 前処理関数を呼び出し
+            # 前処理後のファイル名を生成
+            processed_file_name = f"{text_file.stem}_clns_utf-8.txt"
+            processed_file_path = Path(directory) / processed_file_name
+            if processed_file_path.exists():
+                processed_texts.append(processed_file_path)
+                st.write(f"処理後のファイル {processed_file_path} を生成しました。")
+            else:
+                st.warning(f"処理後のファイル {processed_file_path} が見つかりません。")
+        except Exception as e:
+            st.warning(f"ファイル {text_file} の前処理中にエラーが発生しました: {e}")
     return processed_texts
 
 # チャットボットとやりとりする関数
@@ -124,13 +152,20 @@ def main():
 
         # テキストファイルを処理するボタン
         if st.button("テキストファイルを処理する"):
-            processed_texts = process_text_files(txtfile_879_directory)  # テキストファイルの処理を実行
-            st.success("テキストファイルの処理が完了しました。")
+            processed_text_files = process_text_files(txtfile_879_directory)  # テキストファイルの処理を実行
+            if processed_text_files:
+                st.success("テキストファイルの処理が完了しました。")
 
-            # 処理後のテキストを表示
-            st.subheader("処理後のテキスト")
-            for processed_file in processed_texts:
-                st.write(processed_file)  # 各処理後のファイル名を表示
+                # 前処理後のテキストを読み込む
+                processed_texts = load_processed_texts(processed_text_files)
+
+                # 処理後のテキストを表示
+                st.subheader("処理後のテキスト")
+                for file_name, content in processed_texts.items():
+                    with st.expander(f"ファイル: {file_name}"):
+                        st.text_area(file_name, content, height=200)
+            else:
+                st.warning("処理後のテキストファイルが見つかりませんでした。")
 
         # Streamlit Community Cloudの「Secrets」からOpenAI API keyを取得
         try:
@@ -164,3 +199,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
