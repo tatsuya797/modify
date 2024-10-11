@@ -120,7 +120,7 @@ def main():
     st.write("芥川龍之介の作品に基づくチャットボットです。")
     
     # GitHub 上の ZIP ファイルの URL を指定
-    github_zip_url = "https://github.com/ユーザー名/リポジトリ名/raw/ブランチ名/txtfile_879.zip"
+    github_zip_url = "https://github.com/tatsuya797/modify/blob/main/txtfile_879.zip"
     
     # ZIP ファイルをダウンロード
     tmp_zip_path = download_zip_from_github(github_zip_url)
