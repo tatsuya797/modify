@@ -19,6 +19,9 @@ def extract_zip(file):
     except zipfile.BadZipFile:
         st.error("ZIPファイルが壊れています。正しいZIPファイルをアップロードしてください。")
         st.stop()
+    except zipfile.LargeZipFile:
+        st.error("ZIPファイルが大きすぎます。")
+        st.stop()
     except Exception as e:
         st.error(f"ZIPファイルの解凍中にエラーが発生しました: {e}")
         st.stop()
@@ -97,7 +100,7 @@ def main():
     st.write("芥川龍之介の作品に基づくチャットボットです。")
 
     # GitHubからZIPファイルをダウンロード
-    github_url = "https://github.com/tatsuya797/modify/raw/main/files.zip"  # ここを実際のGitHub URLに置き換える
+    github_url = "https://github.com/tatsuya797/modify/raw/main/files.zip"  # 実際のGitHub URLに置き換える
     try:
         response = requests.get(github_url)
         if response.status_code == 200:
