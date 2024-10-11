@@ -3,6 +3,8 @@ import openai
 import os
 import zipfile
 import tempfile
+import requests
+import shutil
 from pathlib import Path
 from text_preprocessing import save_cleanse_text  # 前処理の関数をインポート
 
@@ -21,6 +23,27 @@ def extract_zip(file):
         st.error(f"ZIPファイルの解凍中にエラーが発生しました: {e}")
         st.stop()
     return temp_dir
+
+# GitHub から ZIP ファイルをダウンロードする関数
+@st.cache_resource
+def download_zip_from_github(url):
+    temp_dir = tempfile.mkdtemp()
+    temp_zip_path = os.path.join(temp_dir, "downloaded_file.zip")
+    
+    try:
+        st.write(f"GitHub から ZIP ファイルをダウンロード中: {url}")
+        response = requests.get(url, stream=True)
+        response.raise_for_status()  # エラーチェック
+        
+        with open(temp_zip_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        st.success("ZIP ファイルのダウンロードが完了しました。")
+        return temp_zip_path
+    except requests.exceptions.RequestException as e:
+        st.error(f"ZIP ファイルのダウンロード中にエラーが発生しました: {e}")
+        st.stop()
 
 # テキストデータを再帰的に読み込む関数
 @st.cache_data
@@ -95,72 +118,73 @@ def communicate():
 def main():
     st.title("芥川龍之介AIアシスタント")
     st.write("芥川龍之介の作品に基づくチャットボットです。")
-
-    # ZIPファイルのアップロード
-    uploaded_file = st.file_uploader("ZIPファイルをアップロードしてください。", type="zip")
-
-    if uploaded_file is not None:
-        # ZIPファイルを一時ファイルとして保存
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".zip") as tmp_file:
-            tmp_file.write(uploaded_file.read())
-            tmp_zip_path = tmp_file.name
-
-        # ZIPファイルを解凍
-        txtfile_879_directory = extract_zip(tmp_zip_path)
-
-        # 解凍後のファイル一覧を表示（デバッグ用）
-        st.write("解凍されたディレクトリ内のファイル一覧:")
-        for path in Path(txtfile_879_directory).rglob('*'):
-            st.write(path)
-
-        # 全テキストデータを読み込む
-        all_akutagawa_texts = load_all_texts_from_directory(txtfile_879_directory)
-
-        # デバッグ用: 読み込んだテキストの長さを表示
-        st.write(f"読み込んだテキストの長さ: {len(all_akutagawa_texts)}文字")
-
-        # 読み込んだテキストを確認
-        st.text_area("テキストデータ", all_akutagawa_texts, height=300)
-
-        # テキストファイルを処理するボタン
-        if st.button("テキストファイルを処理する"):
-            processed_texts = process_text_files(txtfile_879_directory)  # テキストファイルの処理を実行
-            st.success("テキストファイルの処理が完了しました。")
-
-            # 処理後のテキストを表示
-            st.subheader("処理後のテキスト")
-            for processed_file in processed_texts:
-                st.write(processed_file)  # 各処理後のファイル名を表示
-
-        # Streamlit Community Cloudの「Secrets」からOpenAI API keyを取得
+    
+    # GitHub 上の ZIP ファイルの URL を指定
+    github_zip_url = "https://github.com/ユーザー名/リポジトリ名/raw/ブランチ名/txtfile_879.zip"
+    
+    # ZIP ファイルをダウンロード
+    tmp_zip_path = download_zip_from_github(github_zip_url)
+    
+    # ZIPファイルを解凍
+    txtfile_879_directory = extract_zip(tmp_zip_path)
+    
+    # 解凍後のファイル一覧を表示（デバッグ用）
+    st.write("解凍されたディレクトリ内のファイル一覧:")
+    for path in Path(txtfile_879_directory).rglob('*'):
+        st.write(path)
+    
+    # 全テキストデータを読み込む
+    all_akutagawa_texts = load_all_texts_from_directory(txtfile_879_directory)
+    
+    # デバッグ用: 読み込んだテキストの長さを表示
+    st.write(f"読み込んだテキストの長さ: {len(all_akutagawa_texts)}文字")
+    
+    # 読み込んだテキストを確認
+    st.text_area("テキストデータ", all_akutagawa_texts, height=300)
+    
+    # テキストファイルを処理するボタン
+    if st.button("テキストファイルを処理する"):
+        processed_texts = process_text_files(txtfile_879_directory)  # テキストファイルの処理を実行
+        st.success("テキストファイルの処理が完了しました。")
+    
+        # 処理後のテキストを表示
+        st.subheader("処理後のテキスト")
+        for processed_file in processed_texts:
+            st.write(processed_file)  # 各処理後のファイル名を表示
+    
+    # Streamlit Community Cloudの「Secrets」からOpenAI API keyを取得
+    try:
+        openai.api_key = st.secrets["OpenAIAPI"]["openai_api_key"]
+    except KeyError as e:
+        st.error(f"シークレットの設定に問題があります: {e}")
+        st.stop()
+    
+    # st.session_stateを使いメッセージのやりとりを保存
+    if "messages" not in st.session_state:
         try:
-            openai.api_key = st.secrets["OpenAIAPI"]["openai_api_key"]
+            chatbot_setting = st.secrets["AppSettings"]["chatbot_setting"]
         except KeyError as e:
             st.error(f"シークレットの設定に問題があります: {e}")
             st.stop()
-
-        # st.session_stateを使いメッセージのやりとりを保存
-        if "messages" not in st.session_state:
-            try:
-                chatbot_setting = st.secrets["AppSettings"]["chatbot_setting"]
-            except KeyError as e:
-                st.error(f"シークレットの設定に問題があります: {e}")
-                st.stop()
-            st.session_state["messages"] = [
-                {"role": "system", "content": chatbot_setting} 
-            ]
-
-        # ユーザーのメッセージ入力
-        user_input = st.text_input("メッセージを入力してください。", key="user_input", on_change=communicate)
-
-        if st.session_state["messages"]:
-            messages = st.session_state["messages"]
-            for message in reversed(messages[1:]):  # 直近のメッセージを上に
-                speaker = "🙂" if message["role"] == "user" else "🤖"
-                st.write(speaker + ": " + message["content"])
-
-        # 一時ファイルの削除
+        st.session_state["messages"] = [
+            {"role": "system", "content": chatbot_setting} 
+        ]
+    
+    # ユーザーのメッセージ入力
+    user_input = st.text_input("メッセージを入力してください。", key="user_input", on_change=communicate)
+    
+    if st.session_state["messages"]:
+        messages = st.session_state["messages"]
+        for message in reversed(messages[1:]):  # 直近のメッセージを上に
+            speaker = "🙂" if message["role"] == "user" else "🤖"
+            st.write(speaker + ": " + message["content"])
+    
+    # 一時ファイルとディレクトリの削除
+    try:
         os.remove(tmp_zip_path)
+        shutil.rmtree(os.path.dirname(tmp_zip_path))
+    except Exception as e:
+        st.warning(f"一時ファイルの削除中にエラーが発生しました: {e}")
 
 if __name__ == "__main__":
     main()
