@@ -97,7 +97,7 @@ def main():
     st.write("芥川龍之介の作品に基づくチャットボットです。")
 
     # GitHubからZIPファイルをダウンロード
-    github_url = "https://github.com/tatsuya797/modify/blob/main/files.zip"  # ここを実際のGitHub URLに置き換える
+    github_url = "https://github.com/tatsuya797/modify/raw/main/files.zip"  # ここを実際のGitHub URLに置き換える
     try:
         response = requests.get(github_url)
         if response.status_code == 200:
